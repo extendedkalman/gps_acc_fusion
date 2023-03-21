@@ -95,13 +95,13 @@ class GPSAccHandler : public rclcpp::Node
         double a = 6378137.0;                   // WGS84 semi-major axis (meters)
         double f = 1/298.257223563;             // WGS84 flattening
         double b = a * (1 - f);                 // WGS84 semi-minor axis (meters)
-        double e_sq = (std::pow(a, 2) - std::pow(b, 2)) / std::pow(a, 2);     // Eccentricity squared
- 
+        //double e_sq = (std::pow(a, 2) - std::pow(b, 2)) / std::pow(a, 2);     // Eccentricity squared
+        double e_sq = 1 - (std::pow(b, 2) / std::pow(a, 2));
         //phi = latitude in radians
         //lam = longitude in radians
         //h = altitude in meters
 
-        double N = a / std::sqrt(1 - e_sq *  std::pow(std::sin(phi), 2));
+        double N = a / std::sqrt(1 - e_sq * std::pow(std::sin(phi), 2));
 
         double x = (N + h) * std::cos(phi) * std::cos(lam);
         double y = (N + h) * std::cos(phi) * std::sin(lam);
@@ -113,18 +113,33 @@ class GPSAccHandler : public rclcpp::Node
     Eigen::VectorXd transform_ECEF_TO_ENU(double x, double y, double z)
     {
         
+        //Eigen::Matrix3d transform_matrix;
+        //transform_matrix << -std::sin(),            std::cos(),              0,
+        //                    -std::sin()*std::sin(), -std::sin()*std::cos(),  std::cos(),
+        //                    std::cos()*std::cos(), std::cos()*std::sin(),    std::sin();
+
+        double r0 = sqrt(std::pow(x0, 2) + std::pow(y0, 2) + std::pow(z0, 2));
+
         double dx = x - x0;
         double dy = y - y0;
         double dz = z - z0;
 
         double sphi0 = std::sin(phi0);
-        double cphi0 = std::cos(phi0);
+        double phi0 = std::cos(phi0);
         double slam0 = std::sin(lam0);
         double clam0 = std::cos(lam0);
 
-        double dEast = -slam0*dx + clam0*dy;
-        double dNorth = -slam0*cphi0*dx - clam0*cphi0*dy + sphi0*dz;
-        double dUp = clam0*cphi0*dx + slam0*cphi0*dy + sphi0*cphi0*dz;
+        double azimuth = std::atan2(-slam0, clam0);
+        double elevation = std::atan2(sphi0, std::sqrt(std::pow(clam0, 2) + std::pow(slam0, 2)));
+
+        double sA = std::sin(azimuth);
+        double cA = std::cos(azimuth);
+        double sE = std::sin(elevation);
+        double cE = std::cos(elevation);
+
+        double dEast = -sA*dx + cA*dy;
+        double dNorth = -cA*sE*dx - sA*sE*dy + cE*dz;
+        double dUp = cA*cE*dx + sA*cE*dy + sE*dz;
 
         enu_coordinates << dEast, dNorth, dUp;
 
