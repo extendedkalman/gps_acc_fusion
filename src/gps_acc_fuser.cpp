@@ -71,12 +71,57 @@ class GPSAccHandler : public rclcpp::Node
         
     }
 
+    Eigen::VectorXd transform_LLA_to_ECEF(double phi, double lam, double h)
+    {
+        double a = 6378137.0;                   // WGS84 semi-major axis (meters)
+        double f = 1/298.257223563;             // WGS84 flattening
+        double b = a * (1 - f);                 // WGS84 semi-minor axis (meters)
+        double e_sq = (std::pow(a, 2) - std::pow(b, 2)) / std::pow(a, 2);     // Eccentricity squared
+ 
+        //phi = latitude in radians
+        //lam = longitude in radians
+        //h = altitude in meters
+
+        double N = a / sqrt(1 - e_sq *  std::pow(sin(phi), 2));
+
+        double x = (N + h) * cos(phi) * cos(lam);
+        double y = (N + h) * cos(phi) * sin(lam);
+        double z = ((1 - e_sq) * N + h) * sin(phi);
+        ecef_coordinates << x, y, z;
+        return ecef_coordinates;
+    }
+
+    Eigen::VectorXd transform_ECEF_TO_ENU(double x, double y, double z)
+    {
+        double x0, y0, z0 = 0.0; //reference point ECEF coordinates
+        double phi0;             //reference point LLA coordinates
+        double lam0; 
+        double h0;   
+
+        double dx = x - x0;
+        double dy = y - y0;
+        double dz = z - z0;
+
+        double sphi0 = sin(phi0);
+        double cphi0 = cos(phi0);
+        double slam0 = sin(lam0);
+        double clam0 = cos(lam0);
+
+        double dEast = -slam0*dx + clam0*dy;
+        double dNorth = -slam0*cphi0*dx - clam0*cphi0*dy + sphi0*dz;
+        double dUp = clam0*cphi0*dx + slam0*cphi0*dy + sphi0*cphi0*dz;
+
+        enu_coordinates << dEast, dNorth, dUp;
+
+        return enu_coordinates;
+    }
 
 
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_subscription_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscription_;
     Eigen::VectorXd state_ = Eigen::VectorXd(4);
-    
+    Eigen::VectorXd ecef_coordinates = Eigen::VectorXd(3);
+    Eigen::VectorXd enu_coordinates = Eigen::VectorXd(3);
     bool output_ = false;
     
 };
