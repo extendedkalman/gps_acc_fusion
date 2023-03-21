@@ -3,6 +3,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+#include "sensor_msgs/msg/nav_sat_fix.hpp"
 #include "Eigen/Dense"
 #include "tf2/LinearMath/Quaternion.h"
 #include <tf2/LinearMath/Matrix3x3.h>
@@ -17,7 +18,8 @@ class GPSAccHandler : public rclcpp::Node
     {
         
         imu_subscription_ = this->create_subscription<sensor_msgs::msg::Imu>("demo/imu", 10, std::bind(&GPSAccHandler::imu_callback, this, _1));
-        odom_subscription_ = this->create_subscription<nav_msgs::msg::Odometry>("demo/odom", 10, std::bind(&GPSAccHandler::gps_callback, this, _1));
+        gps_subscription_ = this->create_subscription<sensor_msgs::msg::NavSatFix>("/gps", 10, std::bind(&GPSAccHandler::gps_callback, this, _1));
+
     }
 
 
@@ -66,9 +68,26 @@ class GPSAccHandler : public rclcpp::Node
         
     }
 
-    void gps_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
+    void gps_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg)
     {
+
+        if (counter_ == 0) {
+            phi0 = msg->latitude;           
+            lam0 = msg->longitude; 
+            h0 = msg->altitude;
+            Eigen::VectorXd initial_ecef = this->transform_LLA_to_ECEF(phi0, lam0, h0);
+            x0 = initial_ecef(0);
+            y0 = initial_ecef(1);
+            z0 = initial_ecef(2);
+            counter_ = counter_ + 1;
+        }
+
+        Eigen::VectorXd ecef_pos = this->transform_LLA_to_ECEF(msg->latitude, msg->longitude, msg->altitude);
+        Eigen::VectorXd enu_pos = this->transform_ECEF_TO_ENU(ecef_pos(0), ecef_pos(1), ecef_pos(2));
         
+        RCLCPP_INFO(this->get_logger(), "ENU Pos x: '%f'", enu_pos(0));
+        RCLCPP_INFO(this->get_logger(), "ENU Pos y: '%f'", enu_pos(1));
+        RCLCPP_INFO(this->get_logger(), "ENU Pos z: '%f'", enu_pos(2));
     }
 
     Eigen::VectorXd transform_LLA_to_ECEF(double phi, double lam, double h)
@@ -82,30 +101,26 @@ class GPSAccHandler : public rclcpp::Node
         //lam = longitude in radians
         //h = altitude in meters
 
-        double N = a / sqrt(1 - e_sq *  std::pow(sin(phi), 2));
+        double N = a / std::sqrt(1 - e_sq *  std::pow(std::sin(phi), 2));
 
-        double x = (N + h) * cos(phi) * cos(lam);
-        double y = (N + h) * cos(phi) * sin(lam);
-        double z = ((1 - e_sq) * N + h) * sin(phi);
+        double x = (N + h) * std::cos(phi) * std::cos(lam);
+        double y = (N + h) * std::cos(phi) * std::sin(lam);
+        double z = ((1 - e_sq) * N + h) * std::sin(phi);
         ecef_coordinates << x, y, z;
         return ecef_coordinates;
     }
 
     Eigen::VectorXd transform_ECEF_TO_ENU(double x, double y, double z)
     {
-        double x0, y0, z0 = 0.0; //reference point ECEF coordinates
-        double phi0;             //reference point LLA coordinates
-        double lam0; 
-        double h0;   
-
+        
         double dx = x - x0;
         double dy = y - y0;
         double dz = z - z0;
 
-        double sphi0 = sin(phi0);
-        double cphi0 = cos(phi0);
-        double slam0 = sin(lam0);
-        double clam0 = cos(lam0);
+        double sphi0 = std::sin(phi0);
+        double cphi0 = std::cos(phi0);
+        double slam0 = std::sin(lam0);
+        double clam0 = std::cos(lam0);
 
         double dEast = -slam0*dx + clam0*dy;
         double dNorth = -slam0*cphi0*dx - clam0*cphi0*dy + sphi0*dz;
@@ -118,12 +133,16 @@ class GPSAccHandler : public rclcpp::Node
 
 
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_subscription_;
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscription_;
+    rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr gps_subscription_;
     Eigen::VectorXd state_ = Eigen::VectorXd(4);
     Eigen::VectorXd ecef_coordinates = Eigen::VectorXd(3);
     Eigen::VectorXd enu_coordinates = Eigen::VectorXd(3);
     bool output_ = false;
-    
+    double counter_ = 0;
+    double x0, y0, z0; //reference point ECEF coordinates
+    double phi0;             //reference point LLA coordinates
+    double lam0; 
+    double h0;   
 };
 
 int main(int argc, char * argv[])
