@@ -16,7 +16,7 @@ class GPSAccHandler : public rclcpp::Node
   public:
     GPSAccHandler(): Node("GPSAccHandler")
     {
-        
+        prev_enu_pos.setZero();
         imu_subscription_ = this->create_subscription<sensor_msgs::msg::Imu>("demo/imu", 10, std::bind(&GPSAccHandler::imu_callback, this, _1));
         gps_subscription_ = this->create_subscription<sensor_msgs::msg::NavSatFix>("/gps", 10, std::bind(&GPSAccHandler::gps_callback, this, _1));
 
@@ -70,6 +70,7 @@ class GPSAccHandler : public rclcpp::Node
 
     void gps_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg)
     {
+        
 
         if (counter_ == 0) {
             phi0 = msg->latitude;           
@@ -88,6 +89,18 @@ class GPSAccHandler : public rclcpp::Node
         RCLCPP_INFO(this->get_logger(), "ENU Pos x: '%f'", enu_pos(0));
         RCLCPP_INFO(this->get_logger(), "ENU Pos y: '%f'", enu_pos(1));
         RCLCPP_INFO(this->get_logger(), "ENU Pos z: '%f'", enu_pos(2));
+
+
+        Eigen::VectorXd enu_vec = (enu_pos - prev_enu_pos) / 1.0;
+        RCLCPP_INFO(this->get_logger(), "ENU vec x: '%f'", enu_vec(0));
+        RCLCPP_INFO(this->get_logger(), "ENU vec y: '%f'", enu_vec(1));
+        RCLCPP_INFO(this->get_logger(), "ENU vec z: '%f'", enu_vec(2));
+        
+
+
+        std::array<double, 9> gps_pos_covariance = msg->position_covariance;
+
+        prev_enu_pos = enu_pos;
     }
 
     Eigen::VectorXd transform_LLA_to_ECEF(double phi, double lam, double h)
@@ -112,11 +125,6 @@ class GPSAccHandler : public rclcpp::Node
 
     Eigen::VectorXd transform_ECEF_TO_ENU(double x, double y, double z)
     {
-        
-        //Eigen::Matrix3d transform_matrix;
-        //transform_matrix << -std::sin(),            std::cos(),              0,
-        //                    -std::sin()*std::sin(), -std::sin()*std::cos(),  std::cos(),
-        //                    std::cos()*std::cos(), std::cos()*std::sin(),    std::sin();
 
         double r0 = sqrt(std::pow(x0, 2) + std::pow(y0, 2) + std::pow(z0, 2));
 
@@ -152,6 +160,7 @@ class GPSAccHandler : public rclcpp::Node
     Eigen::VectorXd state_ = Eigen::VectorXd(4);
     Eigen::VectorXd ecef_coordinates = Eigen::VectorXd(3);
     Eigen::VectorXd enu_coordinates = Eigen::VectorXd(3);
+    Eigen::VectorXd prev_enu_pos = Eigen::VectorXd(3); 
     bool output_ = false;
     double counter_ = 0;
     double x0, y0, z0; //reference point ECEF coordinates
