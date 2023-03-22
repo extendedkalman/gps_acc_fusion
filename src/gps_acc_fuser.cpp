@@ -24,6 +24,9 @@ class GPSAccHandler : public rclcpp::Node
         B_.setZero();
         Q_ << 0.1, 0.0,
               0.0, 0.1; 
+        H_.setZero();
+        R_.setZero();
+        K_.setZero();
 
         imu_subscription_ = this->create_subscription<sensor_msgs::msg::Imu>("demo/imu", 10, std::bind(&GPSAccHandler::imu_callback, this, _1));
         gps_subscription_ = this->create_subscription<sensor_msgs::msg::NavSatFix>("/gps", 10, std::bind(&GPSAccHandler::gps_callback, this, _1));
@@ -104,7 +107,7 @@ class GPSAccHandler : public rclcpp::Node
         RCLCPP_INFO(this->get_logger(), "ENU vec y: '%f'", enu_vec(1));
         RCLCPP_INFO(this->get_logger(), "ENU vec z: '%f'", enu_vec(2));
         
-
+        measurement_ << enu_pos(0), enu_vec(0);
 
         std::array<double, 9> gps_pos_covariance = msg->position_covariance;
 
@@ -120,6 +123,17 @@ class GPSAccHandler : public rclcpp::Node
 
         state_ = F_ * state_ + B_ * acc;
         covariance_ = F_ * covariance_ * F_.transpose() + Q_;
+    }
+
+    void update()
+    {
+        innovation_ = measurement_ - H_ * state_;
+        S_ = H_ * covariance_ * H_.transpose() + R_;
+        K_ = covariance_ * H_.transpose() * S_.inverse();
+        state_ = state_ + K_ * innovation_;
+        Eigen::Matrix2d I = Eigen::MatrixXd(2,2); 
+        I.setIdentity();
+        covariance_ = (I - K_ * H_) * covariance_;
     }
 
     Eigen::VectorXd transform_LLA_to_ECEF(double phi, double lam, double h)
@@ -188,7 +202,18 @@ class GPSAccHandler : public rclcpp::Node
     Eigen::Matrix2d F_ = Eigen::MatrixXd(2,2); 
     Eigen::VectorXd B_ = Eigen::VectorXd(2);
     Eigen::Matrix2d Q_ = Eigen::MatrixXd(2,2); 
+    Eigen::Matrix2d H_ = Eigen::MatrixXd(2,2); 
+    Eigen::Matrix2d R_ = Eigen::MatrixXd(2,2); 
+    Eigen::Matrix2d S_ = Eigen::MatrixXd(2,2); 
+    Eigen::Matrix2d K_ = Eigen::MatrixXd(2,2); 
+    
+    
+    Eigen::VectorXd measurement_ = Eigen::VectorXd(2);
+    
     Eigen::Matrix2d covariance_ = Eigen::MatrixXd(2,2); //covariance matrix
+    Eigen::Matrix2d innovation_ = Eigen::MatrixXd(2,2);
+    
+
     bool output_ = false;
     double counter_ = 0;
     double x0, y0, z0; //reference point ECEF coordinates
