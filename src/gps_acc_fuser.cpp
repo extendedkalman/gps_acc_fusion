@@ -17,6 +17,14 @@ class GPSAccHandler : public rclcpp::Node
     GPSAccHandler(): Node("GPSAccHandler")
     {
         prev_enu_pos.setZero();
+        
+        state_.setZero();
+        covariance_.setZero();
+        F_.setZero();
+        B_.setZero();
+        Q_ << 0.1, 0.0,
+              0.0, 0.1; 
+
         imu_subscription_ = this->create_subscription<sensor_msgs::msg::Imu>("demo/imu", 10, std::bind(&GPSAccHandler::imu_callback, this, _1));
         gps_subscription_ = this->create_subscription<sensor_msgs::msg::NavSatFix>("/gps", 10, std::bind(&GPSAccHandler::gps_callback, this, _1));
 
@@ -103,6 +111,17 @@ class GPSAccHandler : public rclcpp::Node
         prev_enu_pos = enu_pos;
     }
 
+    void predict(double acc)
+    {
+        F_ << 1, 0.01,
+              0, 1;
+
+        B_ << 0.5 * std::pow(0.01, 2), 0.01;
+
+        state_ = F_ * state_ + B_ * acc;
+        covariance_ = F_ * covariance_ * F_.transpose() + Q_;
+    }
+
     Eigen::VectorXd transform_LLA_to_ECEF(double phi, double lam, double h)
     {
         double a = 6378137.0;                   // WGS84 semi-major axis (meters)
@@ -157,10 +176,19 @@ class GPSAccHandler : public rclcpp::Node
 
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_subscription_;
     rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr gps_subscription_;
-    Eigen::VectorXd state_ = Eigen::VectorXd(4);
+    
     Eigen::VectorXd ecef_coordinates = Eigen::VectorXd(3);
     Eigen::VectorXd enu_coordinates = Eigen::VectorXd(3);
     Eigen::VectorXd prev_enu_pos = Eigen::VectorXd(3); 
+    
+
+    //https://en.wikipedia.org/wiki/Kalman_filter
+    Eigen::VectorXd state_ = Eigen::VectorXd(2);
+
+    Eigen::Matrix2d F_ = Eigen::MatrixXd(2,2); 
+    Eigen::VectorXd B_ = Eigen::VectorXd(2);
+    Eigen::Matrix2d Q_ = Eigen::MatrixXd(2,2); 
+    Eigen::Matrix2d covariance_ = Eigen::MatrixXd(2,2); //covariance matrix
     bool output_ = false;
     double counter_ = 0;
     double x0, y0, z0; //reference point ECEF coordinates
