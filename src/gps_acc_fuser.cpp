@@ -107,11 +107,14 @@ class GPSAccHandler : public rclcpp::Node
         RCLCPP_INFO(this->get_logger(), "ENU vec y: '%f'", enu_vec(1));
         RCLCPP_INFO(this->get_logger(), "ENU vec z: '%f'", enu_vec(2));
         
-        measurement_ << enu_pos(0), enu_vec(0);
+        measurement_ << enu_pos(0), 
+                        enu_vec(0);
 
         std::array<double, 9> gps_pos_covariance = msg->position_covariance;
 
         prev_enu_pos = enu_pos;
+
+        update();
     }
 
     void predict(double acc)
@@ -128,15 +131,24 @@ class GPSAccHandler : public rclcpp::Node
     void update()
     {
         innovation_ = measurement_ - H_ * state_;
+        
         S_ = H_ * covariance_ * H_.transpose() + R_;
         K_ = covariance_ * H_.transpose() * S_.inverse();
         state_ = state_ + K_ * innovation_;
         Eigen::Matrix2d I = Eigen::MatrixXd(2,2); 
         I.setIdentity();
         covariance_ = (I - K_ * H_) * covariance_;
+
+        RCLCPP_INFO(this->get_logger(), "innovation 0,0: '%f'", innovation_(0,0));
+        RCLCPP_INFO(this->get_logger(), "innovation 0,1: '%f'", innovation_(0,1));
+        RCLCPP_INFO(this->get_logger(), "innovation 1,0'", innovation_(1,0));
+        RCLCPP_INFO(this->get_logger(), "innovation 1,1'%f'", innovation_(1,1));
+
+        RCLCPP_INFO(this->get_logger(), "state 0,0: '%f'", state_(0,0));
+        RCLCPP_INFO(this->get_logger(), "state 1,0: '%f'", innovation_(1,0));
     }
 
-    Eigen::VectorXd transform_LLA_to_ECEF(double phi, double lam, double h)
+    Eigen::MatrixXd transform_LLA_to_ECEF(double phi, double lam, double h)
     {
         double a = 6378137.0;                   // WGS84 semi-major axis (meters)
         double f = 1/298.257223563;             // WGS84 flattening
@@ -152,11 +164,13 @@ class GPSAccHandler : public rclcpp::Node
         double x = (N + h) * std::cos(phi) * std::cos(lam);
         double y = (N + h) * std::cos(phi) * std::sin(lam);
         double z = ((1 - e_sq) * N + h) * std::sin(phi);
-        ecef_coordinates << x, y, z;
-        return ecef_coordinates;
+        ecef_coordinates_ << x, 
+                            y, 
+                            z;
+        return ecef_coordinates_;
     }
 
-    Eigen::VectorXd transform_ECEF_TO_ENU(double x, double y, double z)
+    Eigen::MatrixXd transform_ECEF_TO_ENU(double x, double y, double z)
     {
 
         double r0 = sqrt(std::pow(x0, 2) + std::pow(y0, 2) + std::pow(z0, 2));
@@ -182,25 +196,27 @@ class GPSAccHandler : public rclcpp::Node
         double dNorth = -cA*sE*dx - sA*sE*dy + cE*dz;
         double dUp = cA*cE*dx + sA*cE*dy + sE*dz;
 
-        enu_coordinates << dEast, dNorth, dUp;
+        enu_coordinates_ << dEast, 
+                            dNorth, 
+                            dUp;
 
-        return enu_coordinates;
+        return enu_coordinates_;
     }
 
 
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_subscription_;
     rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr gps_subscription_;
     
-    Eigen::VectorXd ecef_coordinates = Eigen::VectorXd(3);
-    Eigen::VectorXd enu_coordinates = Eigen::VectorXd(3);
-    Eigen::VectorXd prev_enu_pos = Eigen::VectorXd(3); 
+    Eigen::MatrixXd ecef_coordinates_ = Eigen::MatrixXd(3,1);
+    Eigen::MatrixXd enu_coordinates_ = Eigen::MatrixXd(3,1);
+    Eigen::MatrixXd prev_enu_pos = Eigen::MatrixXd(3,1); 
     
 
     //https://en.wikipedia.org/wiki/Kalman_filter
-    Eigen::VectorXd state_ = Eigen::VectorXd(2);
+    Eigen::MatrixXd state_ = Eigen::MatrixXd(2,1);
 
     Eigen::Matrix2d F_ = Eigen::MatrixXd(2,2); 
-    Eigen::VectorXd B_ = Eigen::VectorXd(2);
+    Eigen::MatrixXd B_ = Eigen::MatrixXd(2,1);
     Eigen::Matrix2d Q_ = Eigen::MatrixXd(2,2); 
     Eigen::Matrix2d H_ = Eigen::MatrixXd(2,2); 
     Eigen::Matrix2d R_ = Eigen::MatrixXd(2,2); 
@@ -208,7 +224,7 @@ class GPSAccHandler : public rclcpp::Node
     Eigen::Matrix2d K_ = Eigen::MatrixXd(2,2); 
     
     
-    Eigen::VectorXd measurement_ = Eigen::VectorXd(2);
+    Eigen::MatrixXd measurement_ = Eigen::MatrixXd(2,1);
     
     Eigen::Matrix2d covariance_ = Eigen::MatrixXd(2,2); //covariance matrix
     Eigen::Matrix2d innovation_ = Eigen::MatrixXd(2,2);
