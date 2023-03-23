@@ -87,22 +87,22 @@ class GPSAccHandler : public rclcpp::Node
             phi0 = msg->latitude;           
             lam0 = msg->longitude; 
             h0 = msg->altitude;
-            Eigen::VectorXd initial_ecef = this->transform_LLA_to_ECEF(phi0, lam0, h0);
+            Eigen::Matrix<double, 3, 1> initial_ecef = this->transform_LLA_to_ECEF(phi0, lam0, h0);
             x0 = initial_ecef(0);
             y0 = initial_ecef(1);
             z0 = initial_ecef(2);
             counter_ = counter_ + 1;
         }
 
-        Eigen::VectorXd ecef_pos = this->transform_LLA_to_ECEF(msg->latitude, msg->longitude, msg->altitude);
-        Eigen::VectorXd enu_pos = this->transform_ECEF_TO_ENU(ecef_pos(0), ecef_pos(1), ecef_pos(2));
+        Eigen::Matrix<double, 3, 1> ecef_pos = this->transform_LLA_to_ECEF(msg->latitude, msg->longitude, msg->altitude);
+        Eigen::Matrix<double, 3, 1> enu_pos = this->transform_ECEF_TO_ENU(ecef_pos(0), ecef_pos(1), ecef_pos(2));
         
         RCLCPP_INFO(this->get_logger(), "ENU Pos x: '%f'", enu_pos(0));
         RCLCPP_INFO(this->get_logger(), "ENU Pos y: '%f'", enu_pos(1));
         RCLCPP_INFO(this->get_logger(), "ENU Pos z: '%f'", enu_pos(2));
 
 
-        Eigen::VectorXd enu_vec = (enu_pos - prev_enu_pos) / 1.0;
+        Eigen::Matrix<double, 3, 1> enu_vec = (enu_pos - prev_enu_pos) / 1.0;
         RCLCPP_INFO(this->get_logger(), "ENU vec x: '%f'", enu_vec(0));
         RCLCPP_INFO(this->get_logger(), "ENU vec y: '%f'", enu_vec(1));
         RCLCPP_INFO(this->get_logger(), "ENU vec z: '%f'", enu_vec(2));
@@ -119,6 +119,7 @@ class GPSAccHandler : public rclcpp::Node
 
     void predict(double acc)
     {
+        
         F_ << 1, 0.01,
               0, 1;
 
@@ -126,11 +127,13 @@ class GPSAccHandler : public rclcpp::Node
 
         state_ = F_ * state_ + B_ * acc;
         covariance_ = F_ * covariance_ * F_.transpose() + Q_;
+        
     }
 
     void update()
     {
-        innovation_ = measurement_ - H_ * state_;
+        
+        innovation_ = measurement_ - (H_ * state_);
         
         S_ = H_ * covariance_ * H_.transpose() + R_;
         K_ = covariance_ * H_.transpose() * S_.inverse();
@@ -140,15 +143,14 @@ class GPSAccHandler : public rclcpp::Node
         covariance_ = (I - K_ * H_) * covariance_;
 
         RCLCPP_INFO(this->get_logger(), "innovation 0,0: '%f'", innovation_(0,0));
-        RCLCPP_INFO(this->get_logger(), "innovation 0,1: '%f'", innovation_(0,1));
-        RCLCPP_INFO(this->get_logger(), "innovation 1,0'", innovation_(1,0));
-        RCLCPP_INFO(this->get_logger(), "innovation 1,1'%f'", innovation_(1,1));
+        RCLCPP_INFO(this->get_logger(), "innovation 1,0: '%f'", innovation_(1,0));
 
         RCLCPP_INFO(this->get_logger(), "state 0,0: '%f'", state_(0,0));
         RCLCPP_INFO(this->get_logger(), "state 1,0: '%f'", innovation_(1,0));
+        
     }
 
-    Eigen::MatrixXd transform_LLA_to_ECEF(double phi, double lam, double h)
+    Eigen::Matrix<double, 3, 1> transform_LLA_to_ECEF(double phi, double lam, double h)
     {
         double a = 6378137.0;                   // WGS84 semi-major axis (meters)
         double f = 1/298.257223563;             // WGS84 flattening
@@ -170,7 +172,7 @@ class GPSAccHandler : public rclcpp::Node
         return ecef_coordinates_;
     }
 
-    Eigen::MatrixXd transform_ECEF_TO_ENU(double x, double y, double z)
+    Eigen::Matrix<double, 3, 1> transform_ECEF_TO_ENU(double x, double y, double z)
     {
 
         double r0 = sqrt(std::pow(x0, 2) + std::pow(y0, 2) + std::pow(z0, 2));
@@ -207,27 +209,27 @@ class GPSAccHandler : public rclcpp::Node
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_subscription_;
     rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr gps_subscription_;
     
-    Eigen::MatrixXd ecef_coordinates_ = Eigen::MatrixXd(3,1);
-    Eigen::MatrixXd enu_coordinates_ = Eigen::MatrixXd(3,1);
-    Eigen::MatrixXd prev_enu_pos = Eigen::MatrixXd(3,1); 
+    Eigen::Matrix<double, 3, 1> ecef_coordinates_;
+    Eigen::Matrix<double, 3, 1> enu_coordinates_;
+    Eigen::Matrix<double, 3, 1> prev_enu_pos; 
     
 
     //https://en.wikipedia.org/wiki/Kalman_filter
-    Eigen::MatrixXd state_ = Eigen::MatrixXd(2,1);
+    Eigen::Matrix<double, 2, 1> state_;
 
-    Eigen::Matrix2d F_ = Eigen::MatrixXd(2,2); 
-    Eigen::MatrixXd B_ = Eigen::MatrixXd(2,1);
-    Eigen::Matrix2d Q_ = Eigen::MatrixXd(2,2); 
-    Eigen::Matrix2d H_ = Eigen::MatrixXd(2,2); 
-    Eigen::Matrix2d R_ = Eigen::MatrixXd(2,2); 
-    Eigen::Matrix2d S_ = Eigen::MatrixXd(2,2); 
-    Eigen::Matrix2d K_ = Eigen::MatrixXd(2,2); 
+    Eigen::Matrix2d F_; 
+    Eigen::Matrix<double, 2, 1> B_;
+    Eigen::Matrix2d Q_; 
+    Eigen::Matrix2d H_; 
+    Eigen::Matrix2d R_; 
+    Eigen::Matrix2d S_; 
+    Eigen::Matrix2d K_; 
     
     
-    Eigen::MatrixXd measurement_ = Eigen::MatrixXd(2,1);
+    Eigen::Matrix<double, 2, 1> measurement_;
     
-    Eigen::Matrix2d covariance_ = Eigen::MatrixXd(2,2); //covariance matrix
-    Eigen::Matrix2d innovation_ = Eigen::MatrixXd(2,2);
+    Eigen::Matrix2d covariance_; //covariance matrix
+    Eigen::Matrix<double, 2, 1> innovation_;
     
 
     bool output_ = false;
