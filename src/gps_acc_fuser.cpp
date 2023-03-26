@@ -24,7 +24,7 @@ class GPSAccHandler : public rclcpp::Node
         B_.setZero();
         Q_ << 0.1, 0.0,
               0.0, 0.1; 
-        H_.setZero();
+        H_.setIdentity();
         R_.setZero();
         K_.setZero();
 
@@ -76,7 +76,7 @@ class GPSAccHandler : public rclcpp::Node
         }
 
         
-        
+        predict(msg->linear_acceleration.x);
     }
 
     void gps_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg)
@@ -109,6 +109,8 @@ class GPSAccHandler : public rclcpp::Node
         
         measurement_ << enu_pos(0), 
                         enu_vec(0);
+        RCLCPP_INFO(this->get_logger(), "mes(0) '%f'", measurement_(0));
+        RCLCPP_INFO(this->get_logger(), "mes(1): '%f'", measurement_(1));
 
         std::array<double, 9> gps_pos_covariance = msg->position_covariance;
 
@@ -120,33 +122,52 @@ class GPSAccHandler : public rclcpp::Node
     void predict(double acc)
     {
         
-        F_ << 1, 0.01,
-              0, 1;
+        F_ << 1.0, 0.01,
+              0.0, 1.0;
 
-        B_ << 0.5 * std::pow(0.01, 2), 0.01;
+        B_ << 0.5 * std::pow(0.01, 2), 
+              0.01;
+
 
         state_ = F_ * state_ + B_ * acc;
+        
+        RCLCPP_INFO(this->get_logger(), "F_ * state_: '%f'", (F_ * state_)(0,0));
+        RCLCPP_INFO(this->get_logger(), "F_ * state_: '%f'", (F_ * state_)(1,0));
+        RCLCPP_INFO(this->get_logger(), "B_ * acc: '%f'", (B_ * acc)(0 ,0));
+        RCLCPP_INFO(this->get_logger(), "B_ * acc: '%f'", (B_ * acc)(1 ,0));
+
+        RCLCPP_INFO(this->get_logger(), "acc: '%f'", acc);
+        RCLCPP_INFO(this->get_logger(), "state_ 0: '%f'", state_(0));
+        RCLCPP_INFO(this->get_logger(), "state_ 1: '%f'", state_(1));
         covariance_ = F_ * covariance_ * F_.transpose() + Q_;
         
     }
 
     void update()
     {
-        
+        RCLCPP_INFO(this->get_logger(), "----------In update step----------");
         innovation_ = measurement_ - (H_ * state_);
         
         S_ = H_ * covariance_ * H_.transpose() + R_;
+        RCLCPP_INFO(this->get_logger(), "S(0,0): '%f'", S_(0,0));
+        RCLCPP_INFO(this->get_logger(), "S(0,1): '%f'", S_(0,1));
+        RCLCPP_INFO(this->get_logger(), "S(1,0): '%f'", S_(1,0));
+        RCLCPP_INFO(this->get_logger(), "S(1,1): '%f'", S_(1,1));
         K_ = covariance_ * H_.transpose() * S_.inverse();
-        state_ = state_ + K_ * innovation_;
+        RCLCPP_INFO(this->get_logger(), "K(0,0): '%f'", K_(0,0));
+        RCLCPP_INFO(this->get_logger(), "K(0,1): '%f'", K_(0,1));
+        RCLCPP_INFO(this->get_logger(), "K(1,0): '%f'", K_(1,0));
+        RCLCPP_INFO(this->get_logger(), "K(1,1): '%f'", K_(1,1));
+        state_ = state_ + (K_ * innovation_);
+        RCLCPP_INFO(this->get_logger(), "state_(0): '%f'", state_(0));
+        RCLCPP_INFO(this->get_logger(), "state_(1): '%f'", state_(1));
+
         Eigen::Matrix2d I = Eigen::MatrixXd(2,2); 
         I.setIdentity();
         covariance_ = (I - K_ * H_) * covariance_;
 
-        RCLCPP_INFO(this->get_logger(), "innovation 0,0: '%f'", innovation_(0,0));
-        RCLCPP_INFO(this->get_logger(), "innovation 1,0: '%f'", innovation_(1,0));
-
-        RCLCPP_INFO(this->get_logger(), "state 0,0: '%f'", state_(0,0));
-        RCLCPP_INFO(this->get_logger(), "state 1,0: '%f'", innovation_(1,0));
+        RCLCPP_INFO(this->get_logger(), "innovation 0,0: '%f'", innovation_(0));
+        RCLCPP_INFO(this->get_logger(), "innovation 1,0: '%f'", innovation_(1));
         
     }
 
