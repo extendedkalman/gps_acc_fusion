@@ -1,5 +1,6 @@
 #include <memory>
 
+#include <chrono>
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "nav_msgs/msg/odometry.hpp"
@@ -7,9 +8,10 @@
 #include "Eigen/Dense"
 #include "tf2/LinearMath/Quaternion.h"
 #include <tf2/LinearMath/Matrix3x3.h>
-
+#include <geometry_msgs/msg/point32.hpp>
 
 using std::placeholders::_1;
+using namespace std::chrono_literals;
 
 class GPSAccHandler : public rclcpp::Node
 {
@@ -36,13 +38,39 @@ class GPSAccHandler : public rclcpp::Node
 
         imu_subscription_ = this->create_subscription<sensor_msgs::msg::Imu>("demo/imu", 10, std::bind(&GPSAccHandler::imu_callback, this, _1));
         gps_subscription_ = this->create_subscription<sensor_msgs::msg::NavSatFix>("/gps", 10, std::bind(&GPSAccHandler::gps_callback, this, _1));
+        enu_publisher_ = this->create_publisher<geometry_msgs::msg::Point32>("enu", 10);
+        predicted_value_publisher_ = this->create_publisher<geometry_msgs::msg::Point32>("predicted_x", 10);
+        updated_publisher_ = this->create_publisher<geometry_msgs::msg::Point32>("updated_x", 10);
 
+        timer_ = this->create_wall_timer(500ms, std::bind(&GPSAccHandler::enu_callback, this));
+        predicted_timer_ = this->create_wall_timer(500ms, std::bind(&GPSAccHandler::predicted_callback, this));
+        updated_timer_ = this->create_wall_timer(500ms, std::bind(&GPSAccHandler::updated_callback, this));
+        
     }
 
 
   private:
 
-    
+    void predicted_callback()
+    {
+        auto message = geometry_msgs::msg::Point32();
+        message.x = predicted_state_value_x_;
+        predicted_value_publisher_->publish(message);
+    }
+
+    void updated_callback()
+    {
+        auto message = geometry_msgs::msg::Point32();
+        message.x = updated_state_value_x_;
+        updated_publisher_->publish(message);
+    }
+
+    void enu_callback()
+    {
+        auto message = geometry_msgs::msg::Point32();
+        message.x = enu_coordinates_(0);
+        enu_publisher_->publish(message);
+    }
 
     void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
     {
@@ -129,7 +157,8 @@ class GPSAccHandler : public rclcpp::Node
     {
         
         state_ = F_ * state_ + B_ * acc;
-        
+        predicted_state_value_x_ = state_(0);
+
         RCLCPP_INFO(this->get_logger(), "F_ * state_: '%f'", (F_ * state_)(0,0));
         RCLCPP_INFO(this->get_logger(), "F_ * state_: '%f'", (F_ * state_)(1,0));
         RCLCPP_INFO(this->get_logger(), "B_ * acc: '%f'", (B_ * acc)(0 ,0));
@@ -161,7 +190,7 @@ class GPSAccHandler : public rclcpp::Node
         state_ = state_ + (K_ * innovation_);
         RCLCPP_INFO(this->get_logger(), "state_(0): '%f'", state_(0));
         RCLCPP_INFO(this->get_logger(), "state_(1): '%f'", state_(1));
-
+        updated_state_value_x_ = state_(0); 
         Eigen::Matrix2d I = Eigen::MatrixXd(2,2); 
         I.setIdentity();
         covariance_ = (I - K_ * H_) * covariance_;
@@ -229,7 +258,14 @@ class GPSAccHandler : public rclcpp::Node
 
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_subscription_;
     rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr gps_subscription_;
-    
+    rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::TimerBase::SharedPtr predicted_timer_;
+    rclcpp::TimerBase::SharedPtr updated_timer_;
+
+    rclcpp::Publisher<geometry_msgs::msg::Point32>::SharedPtr enu_publisher_;
+    rclcpp::Publisher<geometry_msgs::msg::Point32>::SharedPtr predicted_value_publisher_;
+    rclcpp::Publisher<geometry_msgs::msg::Point32>::SharedPtr updated_publisher_;
+
     Eigen::Matrix<double, 3, 1> ecef_coordinates_;
     Eigen::Matrix<double, 3, 1> enu_coordinates_;
     Eigen::Matrix<double, 3, 1> prev_enu_pos; 
@@ -259,6 +295,9 @@ class GPSAccHandler : public rclcpp::Node
     double phi0;             //reference point LLA coordinates
     double lam0; 
     double h0;   
+
+    double predicted_state_value_x_{};
+    double updated_state_value_x_{};
 };
 
 int main(int argc, char * argv[])
