@@ -19,13 +19,19 @@ class GPSAccHandler : public rclcpp::Node
         prev_enu_pos.setZero();
         
         state_.setZero();
-        covariance_.setZero();
-        F_.setZero();
-        B_.setZero();
-        Q_ << 0.1, 0.0,
-              0.0, 0.1; 
-        H_.setIdentity();
-        R_.setZero();
+        covariance_.setIdentity();
+        covariance_ = covariance_ * 10.0;
+        F_ << 1.0, 0.01,
+              0.0, 1.0;
+
+        B_ << 0.5 * std::pow(0.01, 2), 
+              0.01;
+        Q_ << 0.25, 0.5,
+              0.5, 1.0; 
+        H_ << 0.0, 0.0,
+              1.0, 0.0;
+        R_.setIdentity();
+        R_ = R_*10;
         K_.setZero();
 
         imu_subscription_ = this->create_subscription<sensor_msgs::msg::Imu>("demo/imu", 10, std::bind(&GPSAccHandler::imu_callback, this, _1));
@@ -122,13 +128,6 @@ class GPSAccHandler : public rclcpp::Node
     void predict(double acc)
     {
         
-        F_ << 1.0, 0.01,
-              0.0, 1.0;
-
-        B_ << 0.5 * std::pow(0.01, 2), 
-              0.01;
-
-
         state_ = F_ * state_ + B_ * acc;
         
         RCLCPP_INFO(this->get_logger(), "F_ * state_: '%f'", (F_ * state_)(0,0));
@@ -148,12 +147,13 @@ class GPSAccHandler : public rclcpp::Node
         RCLCPP_INFO(this->get_logger(), "----------In update step----------");
         innovation_ = measurement_ - (H_ * state_);
         
-        S_ = H_ * covariance_ * H_.transpose() + R_;
-        RCLCPP_INFO(this->get_logger(), "S(0,0): '%f'", S_(0,0));
-        RCLCPP_INFO(this->get_logger(), "S(0,1): '%f'", S_(0,1));
-        RCLCPP_INFO(this->get_logger(), "S(1,0): '%f'", S_(1,0));
-        RCLCPP_INFO(this->get_logger(), "S(1,1): '%f'", S_(1,1));
-        K_ = covariance_ * H_.transpose() * S_.inverse();
+        //S_ = H_ * covariance_ * H_.transpose() + R_;
+        //RCLCPP_INFO(this->get_logger(), "S(0,0): '%f'", S_(0,0));
+        //RCLCPP_INFO(this->get_logger(), "S(0,1): '%f'", S_(0,1));
+        //RCLCPP_INFO(this->get_logger(), "S(1,0): '%f'", S_(1,0));
+        //RCLCPP_INFO(this->get_logger(), "S(1,1): '%f'", S_(1,1));
+        //K_ = covariance_ * H_.transpose() * S_.inverse();
+        K_ = covariance_* H_.transpose() * (H_ * covariance_ * H_.transpose() + R_).inverse();
         RCLCPP_INFO(this->get_logger(), "K(0,0): '%f'", K_(0,0));
         RCLCPP_INFO(this->get_logger(), "K(0,1): '%f'", K_(0,1));
         RCLCPP_INFO(this->get_logger(), "K(1,0): '%f'", K_(1,0));
