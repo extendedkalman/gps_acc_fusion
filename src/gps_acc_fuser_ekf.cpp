@@ -7,7 +7,6 @@
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include "tf2/LinearMath/Quaternion.h"
-#include "tf2_geometry_msgs/tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 constexpr double kEarthRadius = 6371000.0; // Earth radius in meters
 constexpr double kDegToRad = M_PI / 180.0;
