@@ -6,7 +6,8 @@
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
-
+#include "tf2/LinearMath/Quaternion.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 constexpr double kEarthRadius = 6371000.0; // Earth radius in meters
 constexpr double kDegToRad = M_PI / 180.0;
@@ -220,11 +221,15 @@ private:
         pose_msg.pose.pose.position.x = x(0);
         pose_msg.pose.pose.position.y = x(1);
         pose_msg.pose.pose.position.z = x(2);
-        pose_msg.pose.pose.orientation = tf2::toMsg(tf2::Quaternion::createZYXQuaternion(x(3), x(4), x(5)));
+
+        // Create quaternion from roll, pitch, and yaw
+        tf2::Quaternion q;
+        q.setRPY(x(5), x(4), x(3));
+        pose_msg.pose.pose.orientation = tf2::toMsg(q);
 
         // Convert the covariance matrix to row-major order
         for (int i = 0; i < 6; i++)
-        for (int j = 0; j < 6; j++)
+            for (int j = 0; j < 6; j++)
             pose_msg.pose.covariance[i * 6 + j] = P(i, j);
 
         // Publish the pose message
