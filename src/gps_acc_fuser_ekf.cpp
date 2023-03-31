@@ -1,5 +1,4 @@
 // ekf.hpp
-#pragma once
 #include <Eigen/Dense>
 #include <cmath>
 #include <rclcpp/rclcpp.hpp>
@@ -7,6 +6,7 @@
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include "tf2/LinearMath/Quaternion.h"
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 constexpr double kEarthRadius = 6371000.0; // Earth radius in meters
 constexpr double kDegToRad = M_PI / 180.0;
@@ -110,8 +110,7 @@ private:
 class GPSConversion
 {
 public:
-  GPSConversion::GPSConversion(double ref_latitude, double ref_longitude, double ref_altitude)
-    : ref_latitude_(ref_latitude), ref_longitude_(ref_longitude), ref_altitude_(ref_altitude) {}
+  GPSConversion(double ref_latitude, double ref_longitude, double ref_altitude): ref_latitude_(ref_latitude), ref_longitude_(ref_longitude), ref_altitude_(ref_altitude) {}
 
   Eigen::Vector3d lla_to_enu(double latitude, double longitude, double altitude) const
   {
