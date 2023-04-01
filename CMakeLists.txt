@@ -17,6 +17,8 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(Boost REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -38,6 +40,7 @@ include_directories(
 )
 
 add_executable(gps_acc_fuser src/gps_acc_fuser.cpp)
+add_executable(gps_acc_fuser_ekf src/gps_acc_fuser_ekf.cpp)
 #target_link_libraries(
 #  ${library_name}
 #  ${GeographicLib_LIBRARIES}
@@ -45,9 +48,11 @@ add_executable(gps_acc_fuser src/gps_acc_fuser.cpp)
 #)
 
 ament_target_dependencies(gps_acc_fuser rclcpp nav_msgs sensor_msgs tf2 tf2_ros)
+ament_target_dependencies(gps_acc_fuser_ekf rclcpp nav_msgs sensor_msgs tf2 tf2_ros geometry_msgs tf2_geometry_msgs)
 
 install(TARGETS
   gps_acc_fuser
+  gps_acc_fuser_ekf
   DESTINATION lib/${PROJECT_NAME})
 
 
