@@ -170,9 +170,9 @@ public:
         ekf_.initialize(x_init, P_init);
 
         imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
-            "imu", 10, std::bind(&PoseEstimator::imu_callback, this, std::placeholders::_1));
+            "/demo/imu", 10, std::bind(&PoseEstimator::imu_callback, this, std::placeholders::_1));
         gps_sub_ = create_subscription<sensor_msgs::msg::NavSatFix>(
-            "gps", 10, std::bind(&PoseEstimator::gps_callback, this, std::placeholders::_1));
+            "/gps", 10, std::bind(&PoseEstimator::gps_callback, this, std::placeholders::_1));
         pose_pub_ = create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("pose", 10);
 
         R_gps_ = Eigen::MatrixXd::Identity(3, 3) * 1e-6;
