@@ -40,7 +40,7 @@ include_directories(
 )
 
 add_executable(gps_acc_fuser src/gps_acc_fuser.cpp)
-add_executable(gps_acc_fuser_ekf src/gps_acc_fuser_ekf.cpp)
+add_executable(gps_acc_fuser_ekf src/gps_acc_fuser_ekf.cpp src/ekf.cpp src/gpsconverter.cpp)
 #target_link_libraries(
 #  ${library_name}
 #  ${GeographicLib_LIBRARIES}
@@ -49,6 +49,8 @@ add_executable(gps_acc_fuser_ekf src/gps_acc_fuser_ekf.cpp)
 
 ament_target_dependencies(gps_acc_fuser rclcpp nav_msgs sensor_msgs tf2 tf2_ros)
 ament_target_dependencies(gps_acc_fuser_ekf rclcpp nav_msgs sensor_msgs tf2 tf2_ros geometry_msgs tf2_geometry_msgs)
+
+target_link_libraries(gps_acc_fuser_ekf Eigen3::Eigen)
 
 install(TARGETS
   gps_acc_fuser
