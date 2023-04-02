@@ -28,7 +28,7 @@ void ExtendedKalmanFilter::initialize(const Eigen::VectorXd& x, const Eigen::Mat
     H_imu_.block<3, 3>(0, 3) = Eigen::MatrixXd::Identity(3, 3);
 }
 
-void ExtendedKalmanFilter::predict(const Eigen::VectorXd& u, double dt)
+void ExtendedKalmanFilter::predict_constant_velo(const Eigen::VectorXd& u, double dt)
 {
     // Apply the motion model to the state
     Eigen::VectorXd x_pred = x_;
@@ -51,6 +51,27 @@ void ExtendedKalmanFilter::predict(const Eigen::VectorXd& u, double dt)
     // Update the state and covariance
     x_ = x_pred;
     P_ = F * P_ * F.transpose() + Q_;
+}
+
+void ExtendedKalmanFilter::predict(const Eigen::VectorXd& u, double dt) {
+  // Define the motion model function
+  auto motion_model = [](const Eigen::VectorXd& x, const Eigen::VectorXd& u) {
+    Eigen::VectorXd x_dot(6);
+    x_dot << x(3) + u(0) * dt, x(4) + u(1) * dt, x(5) + u(2) * dt, u(0), u(1), u(2);
+    return x_dot;
+  };
+
+  // Apply the motion model using the Euler integration method
+  x_ = x_ + motion_model(x_, u) * dt;
+
+  // Approximate the Jacobian matrix F
+  Eigen::MatrixXd F = Eigen::MatrixXd::Identity(6, 6);
+  F(0, 3) = dt;
+  F(1, 4) = dt;
+  F(2, 5) = dt;
+
+  // Update the covariance
+  P_ = F * P_ * F.transpose() + Q_;
 }
 
 void ExtendedKalmanFilter::update_gps(const Eigen::VectorXd& z_gps, const Eigen::MatrixXd& R_gps)

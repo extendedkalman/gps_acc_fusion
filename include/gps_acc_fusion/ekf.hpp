@@ -9,11 +9,14 @@ public:
 
   void predict(const Eigen::VectorXd& u, double dt);
 
+  void predict_constant_velo_case(const Eigen::VectorXd& u, double dt);
+
   void update_gps(const Eigen::VectorXd& z_gps, const Eigen::MatrixXd& R_gps);
 
   void update_imu(const Eigen::VectorXd& z_imu, const Eigen::MatrixXd& R_imu);
 
   Eigen::VectorXd get_state() const;
+  
   Eigen::MatrixXd get_covariance() const;
 
 private:
