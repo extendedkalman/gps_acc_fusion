@@ -55,14 +55,14 @@ void ExtendedKalmanFilter::predict_constant_velo_case(const Eigen::VectorXd& u, 
 
 void ExtendedKalmanFilter::predict(const Eigen::VectorXd& u, double dt) {
   // Define the motion model function
-  auto motion_model = [](const Eigen::VectorXd& x, const Eigen::VectorXd& u) {
+  auto motion_model = [](const Eigen::VectorXd& x, const Eigen::VectorXd& u, const double dt) {
     Eigen::VectorXd x_dot(6);
     x_dot << x(3) + u(0) * dt, x(4) + u(1) * dt, x(5) + u(2) * dt, u(0), u(1), u(2);
     return x_dot;
   };
 
   // Apply the motion model using the Euler integration method
-  x_ = x_ + motion_model(x_, u) * dt;
+  x_ = x_ + motion_model(x_, u, dt) * dt;
 
   // Approximate the Jacobian matrix F
   Eigen::MatrixXd F = Eigen::MatrixXd::Identity(6, 6);
