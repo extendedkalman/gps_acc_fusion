@@ -28,7 +28,7 @@ void ExtendedKalmanFilter::initialize(const Eigen::VectorXd& x, const Eigen::Mat
     H_imu_.block<3, 3>(0, 3) = Eigen::MatrixXd::Identity(3, 3);
 }
 
-void ExtendedKalmanFilter::predict_constant_velo(const Eigen::VectorXd& u, double dt)
+void ExtendedKalmanFilter::predict_constant_velo_case(const Eigen::VectorXd& u, double dt)
 {
     // Apply the motion model to the state
     Eigen::VectorXd x_pred = x_;
